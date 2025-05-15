@@ -248,7 +248,7 @@ struct DetailView: View {
                         VStack(spacing: 0) {
                             ForEach(0...10, id: \.self) { index in
                                 VStack {
-                                    Text("test: \\(index)")
+                                    Text("test: \(index)")
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.vertical, 8)
                                     
@@ -267,7 +267,7 @@ struct DetailView: View {
                         VStack(spacing: 0) {
                             ForEach(0...10, id: \.self) { index in
                                 VStack {
-                                    Text("test: \\(index)")
+                                    Text("test: \(index)")
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.vertical, 8)
                                     
