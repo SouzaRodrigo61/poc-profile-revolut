@@ -2,6 +2,9 @@ import ProjectDescription
 
 let project = Project(
     name: "poc",
+    packages: [
+        .remote(url: "https://github.com/siteline/SwiftUI-Introspect", requirement: .exact("1.3.0"))
+    ],
     targets: [
         .target(
             name: "poc",
@@ -18,7 +21,9 @@ let project = Project(
             ),
             sources: ["poc/Sources/**"],
             resources: ["poc/Resources/**"],
-            dependencies: []
+            dependencies: [
+                .package(product: "SwiftUIIntrospect")
+            ]
         ),
         .target(
             name: "pocTests",

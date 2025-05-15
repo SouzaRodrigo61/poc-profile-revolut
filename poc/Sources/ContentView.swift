@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftUIIntrospect
 
 struct Profile: Identifiable {
     let id: UUID = UUID()
@@ -148,10 +149,6 @@ struct Home: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) {
-            Slider(value: $heroProgress)
-                .padding()
-        }
     }
 }
 
@@ -169,142 +166,156 @@ struct DetailView: View {
     @State private var offset: CGFloat = 0
     
     var body: some View {
-        GeometryReader { geo in
-            let size = geo.size
-            
-            ScrollView {
-                VStack(spacing: 20) {
-                    VStack(spacing: 0) {
-                        Rectangle()
-                            .fill(.clear)
-                            .overlay {
-                                if !showHeroView {
-                                    Rectangle()
-                                        .fill(.blue)
-                                        .frame(width: 150, height: 150)
-                                        .clipShape(.rect(cornerRadius: 150 / 2))
-                                        .transition(.identity)
+        NavigationStack {
+            GeometryReader { geo in
+                let size = geo.size
+                
+                ScrollView {
+                    VStack(spacing: 20) {
+                        VStack(spacing: 0) {
+                            Rectangle()
+                                .fill(.clear)
+                                .overlay {
+                                    if !showHeroView {
+                                        Rectangle()
+                                            .fill(.blue)
+                                            .frame(width: 150, height: 150)
+                                            .clipShape(.rect(cornerRadius: 150 / 2))
+                                            .transition(.identity)
+                                    }
                                 }
-                            }
-                            .frame(width: 150, height: 150)
-                            .anchorPreference(key: AnchorKey.self, value: .bounds) { anchor in
-                                return ["DESTINATION": anchor]
-                            }
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical)
-                    }
-                    .background(scheme == .dark ? Color(UIColor.secondarySystemGroupedBackground) : Color(UIColor.systemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal)
-                    
-                    VStack(spacing: 0) {
-                        ForEach(0...10, id: \.self) { index in
-                            VStack {
-                                Text("test: \(index)")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 8)
-                                
-                                if index < 10 {
-                                    Divider()
-                                        .padding(.leading)
+                                .frame(width: 150, height: 150)
+                                .anchorPreference(key: AnchorKey.self, value: .bounds) { anchor in
+                                    return ["DESTINATION": anchor]
                                 }
-                            }
-                            .padding(.horizontal)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical)
                         }
+                        .background(scheme == .dark ? Color(UIColor.secondarySystemGroupedBackground) : Color(UIColor.systemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal)
+                        
+                        VStack(spacing: 0) {
+                            ForEach(0...10, id: \.self) { index in
+                                VStack {
+                                    Text("test: \(index)")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 8)
+                                    
+                                    if index < 10 {
+                                        Divider()
+                                            .padding(.leading)
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                        .background(scheme == .dark ? Color(UIColor.secondarySystemGroupedBackground) : Color(UIColor.systemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal)
                     }
-                    .background(scheme == .dark ? Color(UIColor.secondarySystemGroupedBackground) : Color(UIColor.systemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal)
+                    .padding(.vertical)
                 }
-                .padding(.vertical)
-            }
-            .scrollIndicators(.hidden)
-            .frame(width: size.width, height: size.height)
-            .background {
-                Rectangle()
-                    .fill(scheme == .dark ? .black : .white)
-                    .ignoresSafeArea()
-            }
-            // Close Button
-            .overlay(alignment: .topLeading) {
-                Button {
-                    showHeroView = true
-                    
-                    withAnimation(.snappy(duration: 0.35, extraBounce: 0), completionCriteria: .logicallyComplete) {
-                        heroProgress = 0.0
-                    } completion: {
-                        Task {
-                            showDetails = false
-                            self.selectedProfile = nil
+                .scrollIndicators(.hidden)
+                .frame(width: size.width, height: size.height)
+                .background {
+                    Rectangle()
+                        .fill(scheme == .dark ? .black : .white)
+                        .ignoresSafeArea()
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            showHeroView = true
+                            
+                            withAnimation(.snappy(duration: 0.35, extraBounce: 0), completionCriteria: .logicallyComplete) {
+                                heroProgress = 0.0
+                            } completion: {
+                                Task {
+                                    showDetails = false
+                                    self.selectedProfile = nil
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.largeTitle)
+                                .imageScale(.medium)
+                                .contentShape(.rect)
+                                .foregroundStyle(.white, .black)
                         }
+                        .buttonStyle(.plain)
+                        .opacity(showHeroView ? 0 : 1)
+                        .animation(.snappy(duration: 0.2, extraBounce: 0), value: showHeroView)
                     }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.largeTitle)
-                        .imageScale(.medium)
+                }
+                .offset(x: (size.width * heroProgress) - size.width)
+                .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .fill(.red)
+                        .frame(width: 10)
                         .contentShape(.rect)
-                        .foregroundStyle(.white, .black)
-                }
-                .buttonStyle(.plain)
-                .opacity(showHeroView ? 0 : 1)
-                .animation(.snappy(duration: 0.2, extraBounce: 0), value: showHeroView)
-            }
-            .offset(x: (size.width * heroProgress) - size.width)
-            .overlay(alignment: .trailing) {
-                Rectangle()
-                    .fill(.red)
-                    .frame(width: 10)
-                    .contentShape(.rect)
-                    .gesture(
-                        DragGesture()
-                            .updating($isDragging) { _, out, _ in
-                                out = true
-                                isDraggingShared = true
-                            }
-                            .onChanged{ value in
-                                var translation = value.translation.width
-                                translation = isDragging ? translation : .zero
-                                translation = translation < 0 ? translation : 0
-                                
-                                /// Converting into progress
-                                /// Começando o movimento imediatamente com uma resposta mais rápida
-                                let dragProgress = 1.0 + ((translation * 1.2) / size.width)
-                                /// Limiting Progress btw 0 - 1
-                                let cappedProgress = min(max(0, dragProgress), 1)
-                                offset = translation
-                                heroProgress = cappedProgress
-                                if !showHeroView {
-                                    showHeroView = true
+                        .gesture(
+                            DragGesture()
+                                .updating($isDragging) { _, out, _ in
+                                    out = true
+                                    isDraggingShared = true
                                 }
-                            }
-                            .onEnded { value in
-                                isDraggingShared = false
-                                /// Closing / Resettings based on end target
-                                let velocity = value.velocity.width
-                                
-                                if (offset + velocity) < -(size.width * 0.8) {
-                                    withAnimation(.snappy(duration: 0.35, extraBounce: 0),
-                                                  completionCriteria: .logicallyComplete) {
-                                        heroProgress = .zero
-                                    } completion: {
-                                        offset = .zero
-                                        showDetails = false
+                                .onChanged{ value in
+                                    var translation = value.translation.width
+                                    translation = isDragging ? translation : .zero
+                                    translation = translation < 0 ? translation : 0
+                                    
+                                    /// Converting into progress
+                                    /// Começando o movimento imediatamente com uma resposta mais rápida
+                                    let dragProgress = 1.0 + ((translation * 1.2) / size.width)
+                                    /// Limiting Progress btw 0 - 1
+                                    let cappedProgress = min(max(0, dragProgress), 1)
+                                    offset = translation
+                                    heroProgress = cappedProgress
+                                    if !showHeroView {
                                         showHeroView = true
-                                        self.selectedProfile = nil
-                                    }
-                                } else {
-                                    withAnimation(.snappy(duration: 0.35, extraBounce: 0),
-                                                  completionCriteria: .logicallyComplete) {
-                                        heroProgress = 1
-                                        offset = .zero
-                                    } completion: {
-                                        showHeroView = false
                                     }
                                 }
-                            }
-                    )
+                                .onEnded { value in
+                                    isDraggingShared = false
+                                    /// Closing / Resettings based on end target
+                                    let velocity = value.velocity.width
+                                    
+                                    if (offset + velocity) < -(size.width * 0.8) {
+                                        withAnimation(.snappy(duration: 0.35, extraBounce: 0),
+                                                      completionCriteria: .logicallyComplete) {
+                                            heroProgress = .zero
+                                        } completion: {
+                                            offset = .zero
+                                            showDetails = false
+                                            showHeroView = true
+                                            self.selectedProfile = nil
+                                        }
+                                    } else {
+                                        withAnimation(.snappy(duration: 0.35, extraBounce: 0),
+                                                      completionCriteria: .logicallyComplete) {
+                                            heroProgress = 1
+                                            offset = .zero
+                                        } completion: {
+                                            showHeroView = false
+                                        }
+                                    }
+                                }
+                        )
+                }
+            }
+            .introspect(.viewController, on: .iOS(.v17, .v18)) { viewController in
+                viewController.view.backgroundColor = .clear
+                
+                // Também tenta limpar o background do filho, se houver:
+                viewController.children.forEach { child in
+                    if String(describing: type(of: child)).contains("NavigationStackHostingController") {
+                        child.view.backgroundColor = .clear
+                    }
+                }
             }
         }
+        .navigationBarBackButtonHidden(true)
     }
 }
 
