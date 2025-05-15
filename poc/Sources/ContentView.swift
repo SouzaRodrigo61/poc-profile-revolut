@@ -15,6 +15,86 @@ var profile: [Profile] = [
     .init(username: "Dwight Schrute", profilePicture: "profile_pic_4", lastMsg: "I'm fine")
 ]
 
+@Observable
+class ProfileViewModel {
+    var allProfiles: [Profile] = profile
+    var selectedProfile: Profile? = nil
+    var showDetails: Bool = false
+    var heroProgress: CGFloat = 0
+    var showHeroView: Bool = true
+    var initialSourceRect: CGRect = .zero
+    var initialDestRect: CGRect = .zero
+    var hasInitialPositions: Bool = false
+    var isDraggingShared: Bool = false
+
+    func selectProfile(_ profile: Profile) {
+        selectedProfile = profile
+        showDetails = true
+        
+        Task { @MainActor in
+            withAnimation(.snappy(duration: 0.35, extraBounce: 0), completionCriteria: .logicallyComplete) {
+                self.heroProgress = 1.0
+            } completion: {
+                Task {
+                    try? await Task.sleep(for: .seconds(0.1))
+                    self.showHeroView = false
+                }
+            }
+        }
+    }
+
+    func closeDetails(currentScrollPosition: Binding<ScrollPosition>? = nil) {
+        showHeroView = true
+        
+        withAnimation(.snappy(duration: 0.35, extraBounce: 0), completionCriteria: .logicallyComplete) {
+            heroProgress = 0.0
+        } completion: {
+            Task {
+                self.showDetails = false
+                self.selectedProfile = nil
+                currentScrollPosition?.wrappedValue.scrollTo(edge: .top)
+            }
+        }
+    }
+    
+    func handleDragChanged(translation: CGFloat, viewSize: CGSize) {
+        var currentTranslation = translation
+        currentTranslation = currentTranslation < 0 ? currentTranslation : 0
+        
+        let dragProgress = 1.0 + ((currentTranslation * 1.2) / viewSize.width)
+        let cappedProgress = min(max(0, dragProgress), 1)
+        
+        heroProgress = cappedProgress
+        if !showHeroView {
+            showHeroView = true
+        }
+    }
+    
+    func handleDragEnded(offset: CGFloat, velocity: CGFloat, viewSize: CGSize, currentScrollPosition: Binding<ScrollPosition>) {
+        isDraggingShared = false
+        if (offset + velocity) < -(viewSize.width * 0.8) {
+            withAnimation(.snappy(duration: 0.35, extraBounce: 0),
+                          completionCriteria: .logicallyComplete) {
+                heroProgress = .zero
+            } completion: {
+                self.showDetails = false
+                self.showHeroView = true
+                self.selectedProfile = nil
+                // offset = .zero // Offset é local para a DetailView, não precisa estar no ViewModel
+            }
+        } else {
+            withAnimation(.snappy(duration: 0.35, extraBounce: 0),
+                          completionCriteria: .logicallyComplete) {
+                heroProgress = 1
+                // offset = .zero // Offset é local para a DetailView
+            } completion: {
+                self.showHeroView = false
+                currentScrollPosition.wrappedValue.scrollTo(edge: .top)
+            }
+        }
+    }
+}
+
 struct ContentView: View {
     var body: some View {
         Home()
@@ -22,25 +102,17 @@ struct ContentView: View {
 }
 
 struct Home: View {
-    @State private var allProfiles: [Profile] = profile
-    @State private var selectedProfile: Profile?
-    @State private var showDetails: Bool = false
-    @State private var heroProgress: CGFloat = 0
-    @State private var showHeroView: Bool = true
-    @State private var initialSourceRect: CGRect = .zero
-    @State private var initialDestRect: CGRect = .zero
-    @State private var hasInitialPositions: Bool = false
-    @State private var isDraggingShared: Bool = false
+    @State private var viewModel = ProfileViewModel()
     
     public var body: some View {
         NavigationStack {
-            List(allProfiles) { profile in
+            List(viewModel.allProfiles) { profile in
                 HStack(spacing: 12) {
                     Rectangle()
                         .fill(Color.orange)
                         .frame(width: 50, height: 50)
                         .clipShape(.rect(cornerRadius: 50 / 2))
-                        .opacity(selectedProfile?.id == profile.id ? 0 : 1)
+                        .opacity(viewModel.selectedProfile?.id == profile.id ? 0 : 1)
                         .anchorPreference(key: AnchorKey.self, value: .bounds) { anchor in
                             return [profile.id.uuidString: anchor]
                         }
@@ -56,35 +128,18 @@ struct Home: View {
                 }
                 .contentShape(.rect)
                 .onTapGesture {
-                    selectedProfile = profile
-                    showDetails = true
-                    
-                    withAnimation(.snappy(duration: 0.35, extraBounce: 0), completionCriteria: .logicallyComplete) {
-                        heroProgress = 1.0
-                    } completion: {
-                        Task {
-                            try? await Task.sleep(for: .seconds(0.1))
-                            showHeroView = false
-                        }
-                    }
-                    
+                    viewModel.selectProfile(profile)
                 }
             }
             .navigationTitle("Progress Effect")
         }
         .overlay {
-            DetailView(
-                selectedProfile: $selectedProfile,
-                heroProgress: $heroProgress,
-                showDetails: $showDetails,
-                showHeroView: $showHeroView,
-                isDraggingShared: $isDraggingShared
-            )
-            .opacity(showDetails ? 1 : 0)
+            DetailView(viewModel: viewModel)
+            .opacity(viewModel.showDetails ? 1 : 0)
         }
         .overlayPreferenceValue(AnchorKey.self, alignment: .center) { value in
             GeometryReader { geo in
-                if let selectedProfile,
+                if let selectedProfile = viewModel.selectedProfile,
                    let source = value[selectedProfile.id.uuidString],
                    let destination = value["DESTINATION"] {
                     
@@ -96,29 +151,29 @@ struct Home: View {
                         Color.clear
                             .onAppear {
                                 // Inicializar com valores atuais
-                                if initialSourceRect == .zero {
-                                    initialSourceRect = sourceRect
-                                    initialDestRect = destinationRect
+                                if viewModel.initialSourceRect == .zero {
+                                    viewModel.initialSourceRect = sourceRect
+                                    viewModel.initialDestRect = destinationRect
                                 }
                             }
-                            .onChange(of: isDraggingShared) { oldValue, newValue in
+                            .onChange(of: viewModel.isDraggingShared) { oldValue, newValue in
                                 // Quando começa o drag
                                 if newValue && !oldValue {
-                                    initialSourceRect = sourceRect
-                                    initialDestRect = destinationRect
-                                    hasInitialPositions = true
+                                    viewModel.initialSourceRect = sourceRect
+                                    viewModel.initialDestRect = destinationRect
+                                    viewModel.hasInitialPositions = true
                                 }
                                 
                                 // Quando termina o drag
-                                if !newValue && oldValue && heroProgress <= 0.01 {
-                                    hasInitialPositions = false
+                                if !newValue && oldValue && viewModel.heroProgress <= 0.01 {
+                                    viewModel.hasInitialPositions = false
                                 }
                             }
                     }
                     
                     // Usar posições iniciais se disponíveis, caso contrário usar atuais
-                    let effectiveSourceRect = hasInitialPositions ? initialSourceRect : sourceRect
-                    let effectiveDestRect = hasInitialPositions ? initialDestRect : destinationRect
+                    let effectiveSourceRect = viewModel.hasInitialPositions ? viewModel.initialSourceRect : sourceRect
+                    let effectiveDestRect = viewModel.hasInitialPositions ? viewModel.initialDestRect : destinationRect
                     
                     let diffSize = CGSize(
                         width: effectiveDestRect.width - effectiveSourceRect.width,
@@ -130,21 +185,21 @@ struct Home: View {
                         y: effectiveDestRect.minY - effectiveSourceRect.minY
                     )
                     
-                    let radius = (effectiveSourceRect.height + (diffSize.height * heroProgress)) / 2
+                    let radius = (effectiveSourceRect.height + (diffSize.height * viewModel.heroProgress)) / 2
                     
                     ZStack {
                         Rectangle()
                             .fill(Color.blue)
                             .frame(
-                                width: effectiveSourceRect.width + (diffSize.width * heroProgress),
-                                height: effectiveSourceRect.height + (diffSize.height * heroProgress)
+                                width: effectiveSourceRect.width + (diffSize.width * viewModel.heroProgress),
+                                height: effectiveSourceRect.height + (diffSize.height * viewModel.heroProgress)
                             )
                             .clipShape(.rect(cornerRadius: radius))
                             .offset(
-                                x: effectiveSourceRect.minX + (initialDiffOrigin.x * heroProgress),
-                                y: effectiveSourceRect.minY + (initialDiffOrigin.y * heroProgress)
+                                x: effectiveSourceRect.minX + (initialDiffOrigin.x * viewModel.heroProgress),
+                                y: effectiveSourceRect.minY + (initialDiffOrigin.y * viewModel.heroProgress)
                             )
-                            .opacity(showHeroView ? 1 : 0)
+                            .opacity(viewModel.showHeroView ? 1 : 0)
                     }
                 }
             }
@@ -154,17 +209,13 @@ struct Home: View {
 
 /// Detail View
 struct DetailView: View {
-    @Binding var selectedProfile: Profile?
-    @Binding var heroProgress: CGFloat
-    @Binding var showDetails: Bool
-    @Binding var showHeroView: Bool
-    @Binding var isDraggingShared: Bool
+    @Bindable var viewModel: ProfileViewModel
     
     @State private var position = ScrollPosition(edge: .top)
     
     @Environment(\.colorScheme) private var scheme
     
-    @GestureState private var isDragging: Bool = false
+    @GestureState private var isDraggingGesture: Bool = false // Renomeado para evitar conflito com viewModel.isDraggingShared
     @State private var offset: CGFloat = 0
     
     var body: some View {
@@ -178,7 +229,7 @@ struct DetailView: View {
                             Rectangle()
                                 .fill(.clear)
                                 .overlay {
-                                    if !showHeroView {
+                                    if !viewModel.showHeroView {
                                         Rectangle()
                                             .fill(.blue)
                                             .frame(width: 150, height: 150)
@@ -193,14 +244,11 @@ struct DetailView: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical)
                         }
-//                        .background(scheme == .dark ? Color(UIColor.secondarySystemGroupedBackground) : Color(UIColor.systemGroupedBackground))
-//                        .clipShape(RoundedRectangle(cornerRadius: 10))
-//                        .padding(.horizontal)
                         
                         VStack(spacing: 0) {
                             ForEach(0...10, id: \.self) { index in
                                 VStack {
-                                    Text("test: \(index)")
+                                    Text("test: \\(index)")
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.vertical, 8)
                                     
@@ -219,7 +267,7 @@ struct DetailView: View {
                         VStack(spacing: 0) {
                             ForEach(0...10, id: \.self) { index in
                                 VStack {
-                                    Text("test: \(index)")
+                                    Text("test: \\(index)")
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.vertical, 8)
                                     
@@ -248,17 +296,7 @@ struct DetailView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            showHeroView = true
-                            
-                            withAnimation(.snappy(duration: 0.35, extraBounce: 0), completionCriteria: .logicallyComplete) {
-                                heroProgress = 0.0
-                            } completion: {
-                                Task {
-                                    showDetails = false
-                                    self.selectedProfile = nil
-                                    position.scrollTo(edge: .top)
-                                }
-                            }
+                            viewModel.closeDetails(currentScrollPosition: $position)
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.largeTitle)
@@ -267,11 +305,11 @@ struct DetailView: View {
                                 .foregroundStyle(.white, .black)
                         }
                         .buttonStyle(.plain)
-                        .opacity(showHeroView ? 0 : 1)
-                        .animation(.snappy(duration: 0.2, extraBounce: 0), value: showHeroView)
+                        .opacity(viewModel.showHeroView ? 0 : 1)
+                        .animation(.snappy(duration: 0.2, extraBounce: 0), value: viewModel.showHeroView)
                     }
                 }
-                .offset(x: (size.width * heroProgress) - size.width)
+                .offset(x: (size.width * viewModel.heroProgress) - size.width)
                 .overlay(alignment: .trailing) {
                     Rectangle()
                         .fill(.clear)
@@ -279,51 +317,21 @@ struct DetailView: View {
                         .contentShape(.rect)
                         .gesture(
                             DragGesture()
-                                .updating($isDragging) { _, out, _ in
+                                .updating($isDraggingGesture) { _, out, _ in
                                     out = true
-                                    isDraggingShared = true
+                                    viewModel.isDraggingShared = true
                                 }
                                 .onChanged{ value in
                                     var translation = value.translation.width
-                                    translation = isDragging ? translation : .zero
-                                    translation = translation < 0 ? translation : 0
-                                    
-                                    /// Converting into progress
-                                    /// Começando o movimento imediatamente com uma resposta mais rápida
-                                    let dragProgress = 1.0 + ((translation * 1.2) / size.width)
-                                    /// Limiting Progress btw 0 - 1
-                                    let cappedProgress = min(max(0, dragProgress), 1)
-                                    offset = translation
-                                    heroProgress = cappedProgress
-                                    if !showHeroView {
-                                        showHeroView = true
-                                    }
+                                    translation = isDraggingGesture ? translation : .zero
+                                    offset = translation // Atualiza o offset local
+                                    viewModel.handleDragChanged(translation: translation, viewSize: size)
                                 }
                                 .onEnded { value in
-                                    isDraggingShared = false
-                                    /// Closing / Resettings based on end target
+                                    // viewModel.isDraggingShared = false // Movido para dentro de handleDragEnded
                                     let velocity = value.velocity.width
-                                    
-                                    if (offset + velocity) < -(size.width * 0.8) {
-                                        withAnimation(.snappy(duration: 0.35, extraBounce: 0),
-                                                      completionCriteria: .logicallyComplete) {
-                                            heroProgress = .zero
-                                        } completion: {
-                                            offset = .zero
-                                            showDetails = false
-                                            showHeroView = true
-                                            self.selectedProfile = nil
-                                        }
-                                    } else {
-                                        withAnimation(.snappy(duration: 0.35, extraBounce: 0),
-                                                      completionCriteria: .logicallyComplete) {
-                                            heroProgress = 1
-                                            offset = .zero
-                                        } completion: {
-                                            showHeroView = false
-                                            position.scrollTo(edge: .top)
-                                        }
-                                    }
+                                    viewModel.handleDragEnded(offset: offset, velocity: velocity, viewSize: size, currentScrollPosition: $position)
+                                    offset = .zero // Reset offset local após o término do drag
                                 }
                         )
                 }
