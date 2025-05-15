@@ -160,6 +160,8 @@ struct DetailView: View {
     @Binding var showHeroView: Bool
     @Binding var isDraggingShared: Bool
     
+    @State private var position = ScrollPosition(edge: .top)
+    
     @Environment(\.colorScheme) private var scheme
     
     @GestureState private var isDragging: Bool = false
@@ -191,6 +193,25 @@ struct DetailView: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical)
                         }
+//                        .background(scheme == .dark ? Color(UIColor.secondarySystemGroupedBackground) : Color(UIColor.systemGroupedBackground))
+//                        .clipShape(RoundedRectangle(cornerRadius: 10))
+//                        .padding(.horizontal)
+                        
+                        VStack(spacing: 0) {
+                            ForEach(0...10, id: \.self) { index in
+                                VStack {
+                                    Text("test: \(index)")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 8)
+                                    
+                                    if index < 10 {
+                                        Divider()
+                                            .padding(.leading)
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
                         .background(scheme == .dark ? Color(UIColor.secondarySystemGroupedBackground) : Color(UIColor.systemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .padding(.horizontal)
@@ -216,6 +237,7 @@ struct DetailView: View {
                     }
                     .padding(.vertical)
                 }
+                .scrollPosition($position)
                 .scrollIndicators(.hidden)
                 .frame(width: size.width, height: size.height)
                 .background {
@@ -234,6 +256,7 @@ struct DetailView: View {
                                 Task {
                                     showDetails = false
                                     self.selectedProfile = nil
+                                    position.scrollTo(edge: .top)
                                 }
                             }
                         } label: {
@@ -251,7 +274,7 @@ struct DetailView: View {
                 .offset(x: (size.width * heroProgress) - size.width)
                 .overlay(alignment: .trailing) {
                     Rectangle()
-                        .fill(.red)
+                        .fill(.clear)
                         .frame(width: 10)
                         .contentShape(.rect)
                         .gesture(
@@ -298,6 +321,7 @@ struct DetailView: View {
                                             offset = .zero
                                         } completion: {
                                             showHeroView = false
+                                            position.scrollTo(edge: .top)
                                         }
                                     }
                                 }
