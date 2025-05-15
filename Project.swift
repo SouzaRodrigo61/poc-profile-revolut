@@ -3,7 +3,8 @@ import ProjectDescription
 let project = Project(
     name: "poc",
     packages: [
-        .remote(url: "https://github.com/siteline/SwiftUI-Introspect", requirement: .exact("1.3.0"))
+        .remote(url: "https://github.com/siteline/SwiftUI-Introspect", requirement: .exact("1.3.0")),
+        .remote(url: "https://github.com/pointfreeco/swift-composable-architecture", requirement: .exact("1.19.1")),
     ],
     targets: [
         .target(
@@ -22,7 +23,8 @@ let project = Project(
             sources: ["poc/Sources/**"],
             resources: ["poc/Resources/**"],
             dependencies: [
-                .package(product: "SwiftUIIntrospect")
+                .package(product: "SwiftUIIntrospect"),
+                .package(product: "ComposableArchitecture"),
             ]
         ),
         .target(
